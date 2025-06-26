@@ -67,7 +67,7 @@ struct matrix {
     uint8_t *uint8_data_ptr;
     uint8_t *int4_data_ptr;
     struct quantization_params qparams;
-    int length() { return row * column; }
+    int length() const { return row * column; }
 };
 
 struct optimization_params {

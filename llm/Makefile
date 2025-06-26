@@ -1,6 +1,6 @@
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++11 -pthread -Ofast -g
+CXXFLAGS = -std=c++17 -pthread -O2 -g
 
 # CUDA flag
 DISABLE_CUDA ?= 1
@@ -39,6 +39,51 @@ ifeq ($(DISABLE_CUDA), 0)
 		CUDA_AVAILABLE := $(shell command -v /usr/local/cuda/bin/nvcc 2> /dev/null)
 	endif
 endif
+
+# Vortex support
+USE_VORTEX ?= 1
+VORTEX_HOME ?= $(abspath ../../vortex)
+VORTEX_BUILD_DIR ?= $(VORTEX_HOME)/build
+VORTEX_RT_PATH ?= $(VORTEX_BUILD_DIR)/runtime
+VORTEX_KN_PATH ?= $(VORTEX_BUILD_DIR)/kernel
+
+VORTEX_CXXFLAGS = -I$(VORTEX_HOME)/runtime/include -I$(VORTEX_BUILD_DIR)/hw
+VORTEX_LDFLAGS =  -L$(VORTEX_RT_PATH) -lvortex
+
+# Vortex toolchain
+VORTEX_TOOLDIR ?= $(abspath ../../../toolchains/vortex-tools)
+VORTEX_LLVM ?= $(VORTEX_TOOLDIR)/llvm-vortex
+VORTEX_RISCV_TOOLCHAIN_PATH ?= $(VORTEX_TOOLDIR)/riscv64-gnu-toolchain
+VORTEX_RISCV_PREFIX  ?= riscv64-unknown-elf
+VORTEX_RISCV_SYSROOT ?= $(VORTEX_RISCV_TOOLCHAIN_PATH)/$(VORTEX_RISCV_PREFIX)
+
+LIBC_VORTEX ?= $(VORTEX_TOOLDIR)/libc64
+LIBCRT_VORTEX ?= $(VORTEX_TOOLDIR)/libcrt64
+
+LLVM_CFLAGS += --sysroot=$(VORTEX_RISCV_SYSROOT)
+LLVM_CFLAGS += --gcc-toolchain=$(VORTEX_RISCV_TOOLCHAIN_PATH)
+LLVM_CFLAGS += -Xclang -target-feature -Xclang +vortex
+LLVM_CFLAGS += -Xclang -target-feature -Xclang +zicond
+LLVM_CFLAGS += -mllvm -disable-loop-idiom-all
+
+VX_CC  = $(VORTEX_LLVM)/bin/clang $(LLVM_CFLAGS)
+VX_CXX = $(VORTEX_LLVM)/bin/clang++ $(LLVM_CFLAGS)
+VX_DP  = $(VORTEX_LLVM)/bin/llvm-objdump
+VX_CP  = $(VORTEX_LLVM)/bin/llvm-objcopy
+
+VX_CFLAGS += -O3 -mcmodel=medany -fno-rtti -fno-exceptions -nostartfiles -nostdlib -fdata-sections -ffunction-sections -std=c++20
+VX_CFLAGS += -I$(VORTEX_HOME)/kernel/include -I$(VORTEX_BUILD_DIR)/hw
+VX_CFLAGS += -DXLEN_64
+VX_CFLAGS += -DNDEBUG
+
+VX_CFLAGS += -march=rv64imafd -mabi=lp64d
+STARTUP_ADDR ?= 0x180000000
+
+VX_LIBS += -L$(LIBC_VORTEX)/lib -lm -lc
+VX_LIBS += $(LIBCRT_VORTEX)/lib/baremetal/libclang_rt.builtins-riscv64.a
+
+VX_LDFLAGS += -Wl,-Bstatic,--gc-sections,-T,$(VORTEX_HOME)/kernel/scripts/link64.ld,--defsym=STARTUP_ADDR=$(STARTUP_ADDR) $(VORTEX_KN_PATH)/libvortex.a $(VX_LIBS)
+
 
 ifdef CUDA_AVAILABLE
 $(info CUDA is available!)
@@ -80,6 +125,11 @@ ifeq ($(shell uname -m),x86_64)
 			INCLUDE_DIRS += -I$(CUDA_HOME)/include -I$(CUDA_HOME)/targets/x86_64-linux/include -I/usr/include/x86_64-linux-gnu
 			LDFLAGS += -lcublas -lculibos -lcudart -lcublasLt -lpthread -ldl -lrt -lnvrtc -lcuda -lcurand -lcusolver -L$(CUDA_HOME)/lib64 -L$(CUDA_HOME)/targets/x86_64-linux/lib -L/usr/lib/x86_64-linux-gnu -Xlinker -rpath=$(CUDA_HOME)/lib64 -Xlinker -rpath=$(CUDA_HOME)/targets/x86_64-linux/lib -Xlinker -rpath=/usr/lib/x86_64-linux-gnu
 		endif
+	else ifdef USE_VORTEX
+# For x86_64 platforms with Vortex GPGPU
+		CXXFLAGS += $(VORTEX_CXXFLAGS)
+		LIB_SRC += $(wildcard $(LIB_DIR)/vortex/*.cc)
+		LDFLAGS += $(VORTEX_LDFLAGS)
 	else
 # For x86_64 platforms with AVX2
 		# For Intel machines with AVX
@@ -144,13 +194,25 @@ SRC_CUDA_CU = $(LIB_SRC_CUDA_CU)
 all: $(TARGET)
 
 # Phony targets
-.PHONY: all clean
+.PHONY: all run kernel_build
 
 # Metal lib
 library.air: $(LIB_DIR)/metal/kernel/op.metal
 	xcrun -sdk macosx metal -ffast-math -fno-fast-math $(LIB_ACC_INC) -c $< -o library.air
 default.metallib: library.air
 	xcrun -sdk macosx metallib library.air -o default.metallib
+
+# Vortex kernel 
+$(LIB_DIR)/vortex/kernel/kernel.elf: $(LIB_DIR)/vortex/kernel/sgemm.cpp
+	$(VX_CXX) $(VX_CFLAGS) $^ $(VX_LDFLAGS) -o $(LIB_DIR)/vortex/kernel/kernel.elf
+
+$(LIB_DIR)/vortex/kernel/kernel.vxbin: $(LIB_DIR)/vortex/kernel/kernel.elf
+	OBJCOPY=$(VX_CP) $(VORTEX_HOME)/kernel/scripts/vxbin.py $< $@
+
+$(LIB_DIR)/vortex/kernel/kernel.dump: $(LIB_DIR)/vortex/kernel/kernel.elf
+	$(VX_DP) -D $< > $@
+
+kernel_build: $(LIB_DIR)/vortex/kernel/kernel.vxbin $(LIB_DIR)/vortex/kernel/kernel.dump
 
 $(info $(SRC))
 OBJS = $(addprefix $(BUILDDIR)/,$(SRC:.cc=.o))
@@ -233,3 +295,6 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf $(PROFILEDIR)/$(LIB_DIR)
 	rm -rf $(PROFILEDIR)
+
+run: $(CHAT_TARGET)	kernel_build
+	LD_LIBRARY_PATH=$(VORTEX_RT_PATH):$(LD_LIBRARY_PATH) VORTEX_DRIVER=simx ./$(CHATNAME) LLaMA_15M FP32 32

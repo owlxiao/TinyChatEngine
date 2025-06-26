@@ -406,6 +406,7 @@ int main(int argc, char* argv[]) {
             std::cout << "Finished!" << std::endl << std::endl;
 
             // Get input from the user
+            /*
             while (true) {
                 std::string input;
                 if (use_voicechat) {
@@ -460,9 +461,11 @@ int main(int argc, char* argv[]) {
                         input = "### Human: " + input + "\n### Assistant: \n";
                     }
                 }
-
-                LLaMAGenerate(m_path, &model, LLaMA_FP32, input, generation_config, "models/llama_vocab.bin", true, false);
-            }
+                
+                
+            }*/
+            LLaMAGenerate(m_path, &model, LLaMA_FP32, "HelloWorld!", generation_config, "models/llama_vocab.bin", true,
+                          false);
         } else if (format_id == INT4) {
             m_path = "INT4/" + m_path;
             Int4LlamaForCausalLM model = Int4LlamaForCausalLM(m_path, get_opt_model_config(model_id));

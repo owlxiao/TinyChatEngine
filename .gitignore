@@ -39,3 +39,9 @@ checkpoints/
 output.wav
 tmpfile
 TTS/
+
+*.log
+llm/trace/
+*.vxbin
+*.elf
+*.dump
