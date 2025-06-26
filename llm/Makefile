@@ -1,9 +1,9 @@
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++11 -pthread -Ofast
+CXXFLAGS = -std=c++11 -pthread -Ofast -g
 
 # CUDA flag
-DISABLE_CUDA ?= 0
+DISABLE_CUDA ?= 1
 DEC_SHARED_MEM ?= 0
 
 # customize define
