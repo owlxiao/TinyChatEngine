@@ -32,7 +32,7 @@ Fp32llamaDecoder::Fp32llamaDecoder(std::string param_path, const struct model_co
     allocate_aligned_memory(inputs_embeds_buf, config.max_sqlen * config.embed_dim * sizeof(float));
     allocate_aligned_memory(first_input_ids_buf, 50 * config.embed_dim * sizeof(float));
     allocate_aligned_memory(image_embed_buf, 576 * config.embed_dim * sizeof(float));
-    allocate_aligned_memory(second_input_ids_buf, (config.max_sqlen-626) * config.embed_dim * sizeof(float));
+    allocate_aligned_memory(second_input_ids_buf, (config.max_sqlen) * config.embed_dim * sizeof(float));
 
     this->voc_size = config.vocsize;
     this->embed_dim = config.embed_dim;

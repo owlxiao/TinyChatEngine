@@ -13,7 +13,8 @@ import struct
 
 import torch
 from transformers import LlamaForCausalLM
-
+from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding, LlamaModel, LlamaAttention
+from transformers.models.llama.configuration_llama import LlamaConfig
 
 @torch.no_grad()
 def _export_model(model, prefix):
@@ -70,13 +71,23 @@ def _export_linearfp(op, prefix):
         f.write(op._parameters["weight"].cpu().float().numpy().tobytes())
 
 
-def _export_rotaryEmbedding(op, prefix):
+def _export_rotaryEmbedding(rotary_emb: LlamaRotaryEmbedding, prefix):
+    max_seq_len = rotary_emb.max_seq_len_cached
+    dtype = torch.torch.float32
+    t = torch.arange(max_seq_len, device="cpu", dtype=torch.float32)
+
+    freqs = torch.outer(t, rotary_emb.original_inv_freq)
+    # Different from paper, but it uses a different permutation in order to obtain the same calculation
+    emb = torch.cat((freqs, freqs), dim=-1)
+    cos_cached = emb.cos().to(dtype)
+    sin_cached = emb.sin().to(dtype)
+
     outpath = prefix
     os.makedirs(outpath, exist_ok=True)
     with open(os.path.join(f"{outpath}", "cos_cached.bin"), "wb") as f:
-        f.write(op.cos_cached.cpu().float().numpy().tobytes())
+        f.write(cos_cached.cpu().float().numpy().tobytes())
     with open(os.path.join(f"{outpath}", "sin_cached.bin"), "wb") as f:
-        f.write(op.sin_cached.cpu().float().numpy().tobytes())
+        f.write(sin_cached.cpu().float().numpy().tobytes())
 
 
 def _export_BMM_F32T(alpha, prefix):
@@ -86,7 +97,7 @@ def _export_BMM_F32T(alpha, prefix):
         f.write(struct.pack("f", alpha))
 
 
-def _export_attention_params(attn, prefix: str):
+def _export_attention_params(attn: LlamaAttention, prefix: str):
     outpath = prefix
     os.makedirs(outpath, exist_ok=True)
     _export_linearfp(attn.k_proj, os.path.join(outpath, "k_proj"))
@@ -95,7 +106,9 @@ def _export_attention_params(attn, prefix: str):
     _export_linearfp(attn.o_proj, os.path.join(outpath, "o_proj"))
     qk_bmm_alpha = 1 / math.sqrt(attn.head_dim)
     _export_BMM_F32T(qk_bmm_alpha, os.path.join(outpath, "qk_bmm"))
-    _export_rotaryEmbedding(attn.rotary_emb, os.path.join(outpath, "rotary_emb"))
+
+    rotary_emb: LlamaRotaryEmbedding = LlamaRotaryEmbedding(attn.config)
+    _export_rotaryEmbedding(rotary_emb, os.path.join(outpath, "rotary_emb"))
 
 
 def main():
@@ -140,8 +153,22 @@ def main():
         else:
             model = LlamaForCausalLM.from_pretrained(args.model, torch_dtype=torch.float16)
     else:
-        model = LlamaForCausalLM.from_pretrained(args.hf_path, torch_dtype=torch.bfloat16)
+        model: LlamaModel = LlamaForCausalLM.from_pretrained(args.hf_path, torch_dtype=torch.float)
 
+    config: LlamaConfig = model.config
+    params = {
+        "batch": None,
+        "num_heads": config.num_attention_heads,
+        "num_kv_heads": config.num_key_value_heads if hasattr(config, "num_key_value_heads") else config.num_attention_heads,
+        "num_layers": config.num_hidden_layers,
+        "max_sqlen": config.max_position_embeddings,
+        "embed_dim": config.hidden_size,
+        "hidden_dim": config.intermediate_size,
+        "vocsize": config.vocab_size,
+        "padding_idx": config.pad_token_id,
+        "rms_norm_eps": config.rms_norm_eps
+    }
+    print(params)
     print("Start exporting LLaMA model...")
     _export_model(model, args.output)
     print("Finished exporting LLaMA model.")

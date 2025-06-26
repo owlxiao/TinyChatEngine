@@ -62,12 +62,15 @@ struct model_config {
           mmproj_dim(mmproj_dim) {}
 };
 
-enum { OPT_125M, OPT_1_3B, OPT_6_7B, LLaMA_7B, LLaMA_13B, CodeLLaMA_7B, CodeLLaMA_13B, StarCoder_15_5B, LLaVA_7B, LLaVA_13B, VILA_2_7B, VILA_7B, VILA_13B, Clip_ViT_Large, Mistral_7B, LLaMA_3_8B, VILA1_5_8B };
+enum { OPT_125M, OPT_1_3B, OPT_6_7B, LLaMA_15M, LLaMA_7B, LLaMA_13B, CodeLLaMA_7B, CodeLLaMA_13B, StarCoder_15_5B, LLaVA_7B, LLaVA_13B, VILA_2_7B, VILA_7B, VILA_13B, Clip_ViT_Large, Mistral_7B, LLaMA_3_8B, VILA1_5_8B };
 enum { FP32, QINT8, INT4 };
 
 const struct model_config opt_6_7B(1, 32, 32, 2048, 4096, 16384, 50272, 1, 0);
 const struct model_config opt_1_3B(1, 32, 24, 2048, 2048, 8192, 50272, 1, 0);
 const struct model_config opt_125m(1, 12, 12, 2048, 768, 3072, 50272, 1, 0);
+const struct model_config llama_15m{
+    1, 6, 6, 6, 256, 288, 768, 32000, 1, 1e-5,
+};
 const struct model_config llama_7B(1, 32, 32, 32, 2048, 4096, 11008, 32000, 1, 1e-6);
 const struct model_config llama_13B(1, 40, 40, 40, 2048, 5120, 13824, 32000, 1, 1e-6);
 const struct model_config codellama_7B(1, 32, 32, 32, 2048, 4096, 11008, 32016, 1, 1e-5);
@@ -93,6 +96,9 @@ static struct model_config get_opt_model_config(int choise) {
             break;
         case OPT_6_7B:
             ret = opt_6_7B;
+            break;
+        case LLaMA_15M:
+            ret = llama_15m;
             break;
         case LLaMA_7B:
             ret = llama_7B;

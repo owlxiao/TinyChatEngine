@@ -7,17 +7,34 @@
 #include "interface.h"
 
 std::map<std::string, int> model_config = {
-    {"OPT_125m", OPT_125M},         {"OPT_1.3B", OPT_1_3B},               {"OPT_6.7B", OPT_6_7B}, {"LLaMA_7B", LLaMA_7B},
-    {"7b", LLaMA_7B},               {"LLaMA2_7B_chat", LLaMA_7B},         {"13b", LLaMA_13B},     {"LLaMA2_13B_chat", LLaMA_13B},
-    {"CodeLLaMA_7B_Instruct", CodeLLaMA_7B},                              {"CodeLLaMA_13B_Instruct", CodeLLaMA_13B}, 
-    {"StarCoder", StarCoder_15_5B}, {"StarCoder_15.5B", StarCoder_15_5B}, {"LLaVA_7B", LLaVA_7B}, {"LLaVA_13B", LLaVA_13B}, 
-    {"VILA_2.7B", VILA_2_7B},       {"VILA_7B", VILA_7B},                 {"VILA_13B", VILA_13B}, {"Clip_ViT_Large", Clip_ViT_Large}, 
-    {"Mistral_7B", Mistral_7B},     {"LLaMA_3_8B_Instruct", LLaMA_3_8B},  {"VILA1.5_8B", VILA1_5_8B},
+    {"OPT_125m", OPT_125M},
+    {"OPT_1.3B", OPT_1_3B},
+    {"OPT_6.7B", OPT_6_7B},
+    {"LLaMA_15M", LLaMA_15M},
+    {"LLaMA_7B", LLaMA_7B},
+    {"7b", LLaMA_7B},
+    {"LLaMA2_7B_chat", LLaMA_7B},
+    {"13b", LLaMA_13B},
+    {"LLaMA2_13B_chat", LLaMA_13B},
+    {"CodeLLaMA_7B_Instruct", CodeLLaMA_7B},
+    {"CodeLLaMA_13B_Instruct", CodeLLaMA_13B},
+    {"StarCoder", StarCoder_15_5B},
+    {"StarCoder_15.5B", StarCoder_15_5B},
+    {"LLaVA_7B", LLaVA_7B},
+    {"LLaVA_13B", LLaVA_13B},
+    {"VILA_2.7B", VILA_2_7B},
+    {"VILA_7B", VILA_7B},
+    {"VILA_13B", VILA_13B},
+    {"Clip_ViT_Large", Clip_ViT_Large},
+    {"Mistral_7B", Mistral_7B},
+    {"LLaMA_3_8B_Instruct", LLaMA_3_8B},
+    {"VILA1.5_8B", VILA1_5_8B},
 };
 
 std::map<std::string, std::string> model_path = {{"OPT_125m", "models/OPT_125m"},
                                                  {"OPT_1.3B", "models/OPT_1.3B"},
                                                  {"OPT_6.7B", "models/OPT_6.7B"},
+                                                 {"LLaMA_15M", "models/LLaMA_15M"},
                                                  {"LLaMA_7B", "models/LLaMA_7B"},
                                                  {"LLaMA2_7B_chat", "models/LLaMA_7B_2_chat"},
                                                  {"LLaMA2_13B_chat", "models/LLaMA_13B_2_chat"},
@@ -143,6 +160,7 @@ int main(int argc, char* argv[]) {
     bool instruct = true;
     std::string img_path = "images/monalisa.jpg";
     Profiler::getInstance().for_demo = true;
+    size_t max_tokens = 2048;
 
     // Set prompt color
     set_print_yellow();
@@ -153,7 +171,8 @@ int main(int argc, char* argv[]) {
         target_model = argv[1];
         
         if (argc >= 4) {
-            NUM_THREAD = atoi(argv[3]);
+            max_tokens = atoi(argv[3]);
+            std::cout << "Max tokens set to: " << max_tokens << std::endl;
         }
         if (argc == 5) {
             if (isCodeLLaMA(target_model) or isMistral(target_model)) {
@@ -370,7 +389,7 @@ int main(int argc, char* argv[]) {
         #endif
 
         struct opt_params generation_config;
-        generation_config.n_predict = 512;
+        generation_config.n_predict = max_tokens;
         generation_config.repeat_penalty = 1.1f;
         generation_config.temp = 0.2f;
         if(isCodeLLaMA(target_model)) {
