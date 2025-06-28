@@ -30,12 +30,6 @@ static vx_buffer_h vortex_args_buffer = nullptr;
 static vx_device_h device = nullptr;
 
 static void cleanup() {
-    // Close Vortex device connection
-    if (device) {
-        RT_CHECK(vx_dev_close(device));
-        device = nullptr;
-    }
-
     // Free buffers
     if (vortex_buffer) {
         RT_CHECK(vx_mem_free(vortex_buffer));
@@ -44,6 +38,12 @@ static void cleanup() {
     if (vortex_args_buffer) {
         RT_CHECK(vx_mem_free(vortex_args_buffer));
         vortex_args_buffer = nullptr;
+    }
+
+    // Close Vortex device connection
+    if (device) {
+        RT_CHECK(vx_dev_close(device));
+        device = nullptr;
     }
 }
 
